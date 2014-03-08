@@ -27,10 +27,12 @@ class Bibliotheca:
 		c = cherrypy.thread_data.db.cursor()
 		
 		# SQL to fetch the stuff we need
-		text_sql  = ' SELECT c00, c08, c09, iVideoHeight, ivideoduration'
+		text_sql  = ' SELECT  c00, c08, c09, iVideoHeight, ivideoduration, drvAudioStream.iMaxAudioStream'
 		text_sql += ' FROM movie'
 		text_sql += ' LEFT JOIN streamdetails ON movie.idfile = streamdetails.idfile'
 		text_sql += '   AND streamdetails.istreamtype = 0'
+		text_sql += ' LEFT JOIN (select idfile, MAX(iAudioChannels) AS iMaxAudioStream FROM streamdetails WHERE istreamtype = 1 GROUP BY idfile) AS drvAudioStream'
+		text_sql += '   ON movie.idfile = drvAudioStream.idFile'
 		text_sql += ' ORDER by c00'
 		# Execute the sql into the cursor
 		c.execute(text_sql) 
@@ -39,14 +41,11 @@ class Bibliotheca:
 		c.close() 
 		
 		# This is a string to hold HTML
-		text_HTML = ("<!DOCTYPE html PUBLIC ""-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd""><html><head>")
-		text_HTML += ("<meta content=""text/html; charset=ISO-8859-1"" http-equiv=""content-type"">")
-		text_HTML += ("<link rel=""stylesheet"" href=""css/style.css"">")
-		text_HTML += ("<title>Films</title>\n")
-		text_HTML += ("</head><body>\n")
-		text_HTML += ("<table>\n")
-		text_HTML += ("<tbody><tr>\n")
+		text_file = open ("html_top.html","r")
+		text_HTML = text_file.read()
 
+		text_HTML += ('<div class="container">')
+		
 		count = 1
 
 		# print all the first cell of all the rows
@@ -61,8 +60,8 @@ class Bibliotheca:
 			else:
 				text_movie_thumbnail = ""
 			
-			# IMDB code
-			text_imdb = row[2].encode("utf-8")
+			# IMDB code, I do not know why some have too many t's
+			text_imdb = "tt" + row[2].encode("utf-8").replace("t","")
 			
 			# Height of video for 480p, 720p or 1080p
 			int_videoheight = row[3]
@@ -83,24 +82,37 @@ class Bibliotheca:
 				text_TimeInhhmmss = format_seconds_to_hhmmss(int_videoduration)
 			else:
 				text_TimeInhhmmss = ""
-			
+
+			# Movie Duration in seconds, but we want it in HH:MM:SS and as a string
+			int_audiochannels = row[5]
+			if int_audiochannels > 2:
+				text_AudioChannels = ' / 5.1'
+			else:
+				text_AudioChannels = ""
+				
 			# Put all this into a HTML cell
-			text_HTML += ('<td>')
+			text_HTML += ('\n<div class="three columns grid-item">')
 			text_HTML += (' <a href="http://www.imdb.com/title/' + text_imdb + '">')
-			text_HTML += ('  <img src="' + text_movie_thumbnail + '" alt="' + text_movie_name + '">')
-			text_HTML += (' </a><BR>' + text_movie_name + ' (' + text_video_quality + ')')
-			text_HTML += (' <BR>' + text_TimeInhhmmss + '<BR>')
-			text_HTML += ('</td>\n')
-			
-			#every 6th start a new row
-			if count == 6:
-				text_HTML += ('</tr>\n<tr>\n')
+			text_HTML += ('  <img src="' + text_movie_thumbnail + '" alt="' + text_movie_name + '"></a>')
+			text_HTML += ('<br />' + text_movie_name + '<br />')
+			text_HTML += (text_video_quality + text_AudioChannels + ' - ' + text_TimeInhhmmss + ' ')
+			text_HTML += ('</div>')
+
+			#every 5th start a new row
+			if count == 5:
+				text_HTML += ('</div><br />')
+				text_HTML += ('<div class="container">')
 				count = 1
 			else:
 				count += 1
-			
-		text_HTML += ("</tr></tbody></table><br></body></html>\n")
 
+		text_HTML += ('<!-- Footer -->')
+		text_HTML += ('</div><!-- container -->')
+		text_HTML += ('<!-- End Document')
+		text_HTML += ('================================================== -->')
+		text_HTML += ('</body>')
+		text_HTML += ('</html>		')
+		
 		# display the web page
 		return text_HTML
 
