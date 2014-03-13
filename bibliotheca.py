@@ -4,14 +4,46 @@ import cherrypy
 
 def connect(thread_index): 
     # Create a connection and store it in the current thread 
-    cherrypy.thread_data.db = lite.connect('../Database/MyVideos75.db')
+	text_database_file_78 = '../Database/MyVideos78.db'
+	text_database_file_75 = '../Database/MyVideos75.db'
+	if os.path.isfile(text_database_file_78):
+		cherrypy.thread_data.db = lite.connect(text_database_file_78)
+	else:
+		cherrypy.thread_data.db = lite.connect(text_database_file_75)
+	
 
 def format_seconds_to_hhmmss(seconds):
 	hours = seconds // (60*60)
 	seconds %= (60*60)
 	minutes = seconds // 60
 	seconds %= 60
-	return "%02i:%02i:%02i" % (hours, minutes, seconds)	
+	return '%02i:%02i:%02i' % (hours, minutes, seconds)	
+	
+def format_video_quality(int_videoheight):
+	# The video quality may not be scanned in yet
+	text_video_quality = ''
+	
+	# Assume if it is bigger than x high it is the next size up
+	if int_videoheight > 200:
+		text_video_quality = '240p'
+
+	if int_videoheight > 240:
+		text_video_quality = '288p'
+
+	if int_videoheight > 288:
+		text_video_quality = '360p'
+		
+	if int_videoheight > 360:
+		text_video_quality = '480p'
+		
+	if int_videoheight > 480:
+		text_video_quality = '720p'
+
+	if int_videoheight > 720:
+		text_video_quality = '1080p'
+
+	return text_video_quality
+
 	
 # Tell CherryPy to call "connect" for each thread, when it starts up 
 cherrypy.engine.subscribe('start_thread', connect)	
@@ -31,7 +63,10 @@ class Bibliotheca:
 		text_sql += ' FROM movie'
 		text_sql += ' LEFT JOIN streamdetails ON movie.idfile = streamdetails.idfile'
 		text_sql += '   AND streamdetails.istreamtype = 0'
-		text_sql += ' LEFT JOIN (select idfile, MAX(iAudioChannels) AS iMaxAudioStream FROM streamdetails WHERE istreamtype = 1 GROUP BY idfile) AS drvAudioStream'
+		text_sql += ' LEFT JOIN (SELECT idfile, MAX(iAudioChannels) AS iMaxAudioStream'
+		text_sql += '              FROM streamdetails'
+		text_sql += '            WHERE istreamtype = 1'
+		text_sql += '            GROUP BY idfile) AS drvAudioStream'
 		text_sql += '   ON movie.idfile = drvAudioStream.idFile'
 		text_sql += ' ORDER by c00'
 		# Execute the sql into the cursor
@@ -41,9 +76,9 @@ class Bibliotheca:
 		c.close() 
 		
 		# This is a string to hold HTML
-		text_file = open ("html_top.html","r")
+		text_file = open ('html_top.html','r')
 		text_HTML = text_file.read()
-
+		
 		text_HTML += ('<div class="container">')
 		
 		count = 1
@@ -51,51 +86,47 @@ class Bibliotheca:
 		# print all the first cell of all the rows
 		for row in rows :
 			# Movie Name
-			text_movie_name = row[0].encode("utf-8")
+			text_movie_name = row[0].encode('utf-8')
 			
 			# Link to Thumbnail, best I can do atm
 			arr_file_name = row[1].encode("utf-8").split('http')
 			if len(arr_file_name) > 1:
-				text_movie_thumbnail = "http" + arr_file_name[1].replace('">','')
+				text_movie_thumbnail = 'http' + arr_file_name[1].replace('">','')
 			else:
-				text_movie_thumbnail = ""
+				text_movie_thumbnail = ''
 			
 			# IMDB code, I do not know why some have too many t's
-			text_imdb = "tt" + row[2].encode("utf-8").replace("t","")
+			text_imdb = 'tt' + row[2].encode('utf-8').replace('t','')
 			
 			# Height of video for 480p, 720p or 1080p
-			int_videoheight = row[3]
-			# Default to 480p unless its bigger
-			text_video_quality = "480p"
+			text_video_quality = format_video_quality(row[3])
 			
-			# Assume if it is bigger than 480 high it is 720p
-			if int_videoheight > 480:
-				text_video_quality = "720p"
-
-			# Assume if it is bigger than 720 high it is 1080p
-			if int_videoheight > 720:
-				text_video_quality = "1080p"
-			
+			# Is it surround sound or not - Assume 5.1 if more than 2 channels
+			int_audiochannels = row[5]
+			if int_audiochannels > 2:
+				if text_video_quality == '':
+					text_AudioChannels = ' 5.1'
+				else:
+					text_AudioChannels = ' / 5.1'
+			else:
+				text_AudioChannels = ''
+				
 			# Movie Duration in seconds, but we want it in HH:MM:SS and as a string
 			int_videoduration = row[4]
 			if int_videoduration > 0:
-				text_TimeInhhmmss = format_seconds_to_hhmmss(int_videoduration)
+				if text_video_quality + text_AudioChannels == '':
+					text_TimeInhhmmss = format_seconds_to_hhmmss(int_videoduration)
+				else:
+					text_TimeInhhmmss = ' - ' + format_seconds_to_hhmmss(int_videoduration)
 			else:
-				text_TimeInhhmmss = ""
+				text_TimeInhhmmss = ''
 
-			# Movie Duration in seconds, but we want it in HH:MM:SS and as a string
-			int_audiochannels = row[5]
-			if int_audiochannels > 2:
-				text_AudioChannels = ' / 5.1'
-			else:
-				text_AudioChannels = ""
-				
-			# Put all this into a HTML cell
+				# Put all this into a HTML cell
 			text_HTML += ('\n<div class="three columns grid-item">')
 			text_HTML += (' <a href="http://www.imdb.com/title/' + text_imdb + '">')
 			text_HTML += ('  <img src="' + text_movie_thumbnail + '" alt="' + text_movie_name + '"></a>')
-			text_HTML += ('<br />' + text_movie_name + '<br />')
-			text_HTML += (text_video_quality + text_AudioChannels + ' - ' + text_TimeInhhmmss + ' ')
+			text_HTML += ('<br /><strong>' + text_movie_name + '</strong><br />')
+			text_HTML += (text_video_quality + text_AudioChannels + text_TimeInhhmmss + ' ')
 			text_HTML += ('</div>')
 
 			#every 5th start a new row
@@ -105,7 +136,8 @@ class Bibliotheca:
 				count = 1
 			else:
 				count += 1
-
+		
+		# I should read this from a html_bottom.html file
 		text_HTML += ('<!-- Footer -->')
 		text_HTML += ('</div><!-- container -->')
 		text_HTML += ('<!-- End Document')
