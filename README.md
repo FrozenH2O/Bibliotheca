@@ -1,4 +1,4 @@
-Bibliotheca - Pre-Alpha
+# Bibliotheca - Pre-Alpha
 
 Is a view only view on the XBMC database.  I wanted a way to allow my friends to see what movies I have.
 This is basically a listing of the movies in the XBMC database.  I use openELEC so that what I've coded it to work with.
